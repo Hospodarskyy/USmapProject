@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>2024 US Election Map</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: sans-serif; background: #f9f9f9; }
+    #map-container { max-width: 1200px; margin: 40px auto; padding: 0 20px; }
+    h1 { font-size: 22px; font-weight: 500; margin-bottom: 6px; color: #222; }
+    p.subtitle { font-size: 13px; color: #888; margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+  <div id="map-container">
+    <h1>2024 US Presidential Election</h1>
+    <p class="subtitle">Hover over a state to see results · Click to explore counties</p>
+    <div id="map"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3"></script>
+  <script src="main.js"></script>
+</body>
+</html>
