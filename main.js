@@ -72,7 +72,7 @@ async function init() {
 
   function makeBarChart(result, harrisPhoto, trumpPhoto) {
     const w = 160, h = 260;
-    const margin = { top: 15, right: 10, bottom: 80, left: 28 };
+    const margin = { top: 10, right: 24, bottom: 80, left: 28 };
     const innerW = w - margin.left - margin.right;
     const innerH = h - margin.top - margin.bottom;
 
@@ -109,7 +109,7 @@ async function init() {
         .attr("stroke-dasharray", "3,3");
 
       g.append("text")
-        .attr("x", innerW + 6)
+        .attr("x", innerW - 4)
         .attr("y", fiftyY)
         .attr("text-anchor", "end")
         .attr("dominant-baseline", "central")
@@ -227,13 +227,19 @@ async function init() {
   const mapG = svg.append("g");
   let isZoomed = false;
 
-    const zoom = d3.zoom()
+  const zoom = d3.zoom()
     .scaleExtent([1, 8])
-    .filter(event => event.type === "wheel" || event.type === "touchstart" || event.type === "touchmove")
-    .on("zoom", (event) => {
-        mapG.attr("transform", event.transform);
-        svg.select(".county-layer").attr("transform", event.transform);
-    });
+    .filter(event => {
+    if (event.type === "wheel") return true;
+    if (event.type === "touchstart" || event.type === "touchmove") {
+      return event.touches && event.touches.length >= 2;
+    }
+    return false;
+  })
+  .on("zoom", (event) => {
+    mapG.attr("transform", event.transform);
+    svg.select(".county-layer").attr("transform", event.transform);
+  });
 
   svg.call(zoom);
 
@@ -256,6 +262,7 @@ async function init() {
 
       if (isMobile) {
         mobilePanel.style("display", "none").html("");
+        buildDefaultMobilePanel();
       } else {
         sidebar
           .style("transition", "transform 0.3s ease, opacity 0.3s ease")
@@ -733,8 +740,113 @@ async function init() {
       d3.select("#back-btn").style("display", "block");
     });
 
+  function buildDefaultMobilePanel() {
+    const natDemVotes  = d3.sum([...stateResults.values()], d => d.votes_dem);
+    const natRepVotes  = d3.sum([...stateResults.values()], d => d.votes_gop);
+    const natTotal     = d3.sum([...stateResults.values()], d => d.total_votes);
+    const natDemPct    = natDemVotes / natTotal * 100;
+    const natRepPct    = natRepVotes / natTotal * 100;
+
+    mobilePanel.style("display", "block").html("");
+
+    mobilePanel.append("div")
+      .style("padding", "12px 16px 8px")
+      .style("border-bottom", "0.5px solid #eee")
+      .html(`
+        <div style="font-weight:600;font-size:16px;color:#222">2024 US Presidential Election</div>
+        <div style="font-size:12px;color:#999;margin-top:3px">Popular vote results</div>
+      `);
+
+    const photoRow = mobilePanel.append("div")
+      .style("display", "flex")
+      .style("gap", "6px")
+      .style("padding", "14px 16px")
+      .style("border-bottom", "0.5px solid #eee")
+      .style("align-items", "flex-start")
+      .style("justify-content", "center");
+
+    const harrisDiv = photoRow.append("div")
+      .style("flex", "1").style("display", "flex")
+      .style("flex-direction", "column").style("align-items", "center").style("gap", "4px");
+
+    harrisDiv.append("img")
+      .attr("src", harrisPhoto)
+      .style("width", "72px").style("height", "72px")
+      .style("border-radius", "50%").style("object-fit", "cover")
+      .style("border", "2px solid #2980b9");
+
+    harrisDiv.append("div")
+      .style("font-size", "13px").style("color", "#2980b9").style("font-weight", "500")
+      .text("Harris");
+
+    harrisDiv.append("div")
+      .style("font-size", "20px").style("font-weight", "600").style("color", "#2980b9")
+      .text(`${natDemPct.toFixed(1)}%`);
+
+    harrisDiv.append("div")
+      .style("font-size", "11px").style("color", "#888")
+      .text(`${(natDemVotes / 1e6).toFixed(1)}M votes`);
+
+    photoRow.append("div")
+      .style("font-size", "12px").style("color", "#aaa")
+      .style("font-weight", "500").style("margin-top", "26px").text("vs");
+
+    const trumpDiv = photoRow.append("div")
+      .style("flex", "1").style("display", "flex")
+      .style("flex-direction", "column").style("align-items", "center").style("gap", "4px");
+
+    trumpDiv.append("img")
+      .attr("src", trumpPhoto)
+      .style("width", "72px").style("height", "72px")
+      .style("border-radius", "50%").style("object-fit", "cover")
+      .style("border", "2px solid #c0392b");
+
+    trumpDiv.append("div")
+      .style("font-size", "13px").style("color", "#c0392b").style("font-weight", "500")
+      .text("Trump");
+
+    trumpDiv.append("div")
+      .style("font-size", "20px").style("font-weight", "600").style("color", "#c0392b")
+      .text(`${natRepPct.toFixed(1)}%`);
+
+    trumpDiv.append("div")
+      .style("font-size", "11px").style("color", "#888")
+      .text(`${(natRepVotes / 1e6).toFixed(1)}M votes`);
+
+    const barWrap = mobilePanel.append("div")
+      .style("padding", "0 16px 12px");
+
+    const natBar = barWrap.append("div")
+      .style("display", "flex").style("width", "100%")
+      .style("height", "14px").style("border-radius", "4px")
+      .style("overflow", "hidden").style("margin-bottom", "4px");
+
+    natBar.append("div")
+      .style("width", `${natDemPct}%`).style("background", "#2980b9").style("height", "100%");
+
+    natBar.append("div")
+      .style("width", `${natRepPct}%`).style("background", "#c0392b").style("height", "100%");
+
+    barWrap.append("div")
+      .style("display", "flex").style("justify-content", "space-between")
+      .html(`
+        <span style="font-size:11px;color:#2980b9">${natDemPct.toFixed(1)}%</span>
+        <span style="font-size:11px;color:#c0392b">${natRepPct.toFixed(1)}%</span>
+      `);
+
+    mobilePanel.append("div")
+      .style("padding", "10px 16px 14px")
+      .style("font-size", "12px")
+      .style("color", "#aaa")
+      .style("text-align", "center")
+      .text("Tap a state to explore county results");
+  }
+
   // Mount map into page
   document.getElementById("map").appendChild(wrapper.node());
+
+  // Show default panel on mobile load
+  if (isMobile) buildDefaultMobilePanel();
 }
 
 init();
