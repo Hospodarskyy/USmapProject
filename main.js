@@ -26,10 +26,10 @@ async function init() {
     const byState = d3.rollup(
       electionRaw,
       rows => ({
-        votes_dem:  d3.sum(rows, d => d.votes_dem),
-        votes_gop:  d3.sum(rows, d => d.votes_gop),
+        votes_dem:   d3.sum(rows, d => d.votes_dem),
+        votes_gop:   d3.sum(rows, d => d.votes_gop),
         total_votes: d3.sum(rows, d => d.total_votes),
-        state_name: rows[0].state_name
+        state_name:  rows[0].state_name
       }),
       d => String(d.county_fips).padStart(5, "0").slice(0, 2)
     );
@@ -54,7 +54,7 @@ async function init() {
     .range(["#c0392b", "#e8e8e8", "#2980b9"])
     .clamp(true);
 
-  // ── Tooltip ───────────────────────────────────────────────────────────────────
+  // ── Tooltip (desktop only) ────────────────────────────────────────────────────
 
   const tooltip = d3.select("body").append("div")
     .style("position", "absolute")
@@ -71,8 +71,8 @@ async function init() {
   // ── Bar chart for tooltip ─────────────────────────────────────────────────────
 
   function makeBarChart(result, harrisPhoto, trumpPhoto) {
-    const w = 200, h = 240;
-    const margin = { top: 10, right: 10, bottom: 80, left: 28 };
+    const w = 160, h = 260;
+    const margin = { top: 15, right: 10, bottom: 80, left: 28 };
     const innerW = w - margin.left - margin.right;
     const innerH = h - margin.top - margin.bottom;
 
@@ -86,8 +86,9 @@ async function init() {
       .range([0, innerW])
       .padding(0.35);
 
+    const maxPct = Math.max(result.dem_pct, result.rep_pct);
     const y = d3.scaleLinear()
-      .domain([0, 100])
+      .domain([0, maxPct])
       .range([innerH, 0]);
 
     const svg = d3.create("svg")
@@ -97,21 +98,25 @@ async function init() {
     const g = svg.append("g")
       .attr("transform", `translate(${margin.left},${margin.top})`);
 
-    // 50% reference line
-    g.append("line")
-      .attr("x1", 0).attr("x2", innerW)
-      .attr("y1", y(50)).attr("y2", y(50))
-      .attr("stroke", "#ccc")
-      .attr("stroke-width", 1)
-      .attr("stroke-dasharray", "3,3");
+    // 50% reference line (only if in range)
+    const fiftyY = y(50);
+    if (fiftyY >= 0 && fiftyY <= innerH) {
+      g.append("line")
+        .attr("x1", 0).attr("x2", innerW)
+        .attr("y1", fiftyY).attr("y2", fiftyY)
+        .attr("stroke", "#ccc")
+        .attr("stroke-width", 1)
+        .attr("stroke-dasharray", "3,3");
 
-    g.append("text")
-      .attr("x", innerW + 2)
-      .attr("y", y(50))
-      .attr("dominant-baseline", "central")
-      .style("font-size", "9px")
-      .style("fill", "#aaa")
-      .text("50%");
+      g.append("text")
+        .attr("x", innerW + 6)
+        .attr("y", fiftyY)
+        .attr("text-anchor", "end")
+        .attr("dominant-baseline", "central")
+        .style("font-size", "9px")
+        .style("fill", "#aaa")
+        .text("50%");
+    }
 
     // Bars — animate up
     g.selectAll(".bar")
@@ -161,7 +166,6 @@ async function init() {
       .attr("height", photoSize)
       .attr("clip-path", "circle()");
 
-    // Candidate name labels
     g.selectAll(".name-label")
       .data(data)
       .join("text")
@@ -179,6 +183,7 @@ async function init() {
   // ── Map ───────────────────────────────────────────────────────────────────────
 
   const width = 975, height = 610;
+  const isMobile = window.innerWidth < 600;
 
   const wrapper = d3.create("div")
     .style("position", "relative")
@@ -189,6 +194,7 @@ async function init() {
     .style("width", "100%")
     .style("display", "block");
 
+  // Desktop sidebar
   const sidebar = wrapper.append("div")
     .attr("id", "county-sidebar")
     .style("display", "none")
@@ -203,17 +209,30 @@ async function init() {
     .style("font-family", "sans-serif")
     .style("font-size", "12px");
 
+  // Mobile panel (below map)
+  const mobilePanel = wrapper.append("div")
+    .attr("id", "mobile-panel")
+    .style("display", "none")
+    .style("width", "100%")
+    .style("background", "white")
+    .style("border-top", "0.5px solid #ddd")
+    .style("font-family", "sans-serif")
+    .style("font-size", "13px")
+    .style("max-height", "400px")
+    .style("overflow-y", "auto");
+
   const path = d3.geoPath();
   const states = topojson.feature(us, us.objects.states);
 
   const mapG = svg.append("g");
   let isZoomed = false;
 
-  const zoom = d3.zoom()
+    const zoom = d3.zoom()
     .scaleExtent([1, 8])
+    .filter(event => event.type === "wheel" || event.type === "touchstart" || event.type === "touchmove")
     .on("zoom", (event) => {
-      mapG.attr("transform", event.transform);
-      svg.select(".county-layer").attr("transform", event.transform);
+        mapG.attr("transform", event.transform);
+        svg.select(".county-layer").attr("transform", event.transform);
     });
 
   svg.call(zoom);
@@ -235,18 +254,21 @@ async function init() {
     .on("click", function() {
       isZoomed = false;
 
-      sidebar
-        .style("transition", "transform 0.3s ease, opacity 0.3s ease")
-        .style("transform", "translateX(220px)")
-        .style("opacity", "0");
-
-      setTimeout(() => {
+      if (isMobile) {
+        mobilePanel.style("display", "none").html("");
+      } else {
         sidebar
-          .style("display", "none")
-          .style("transition", "")
-          .style("transform", "")
-          .style("opacity", "");
-      }, 300);
+          .style("transition", "transform 0.3s ease, opacity 0.3s ease")
+          .style("transform", "translateX(220px)")
+          .style("opacity", "0");
+        setTimeout(() => {
+          sidebar
+            .style("display", "none")
+            .style("transition", "")
+            .style("transform", "")
+            .style("opacity", "");
+        }, 300);
+      }
 
       svg.transition().duration(600).call(zoom.transform, d3.zoomIdentity);
 
@@ -275,13 +297,12 @@ async function init() {
     .attr("stroke-width", 0.5)
     .style("cursor", "pointer")
     .on("mouseover", function(event, d) {
-      if (isZoomed) return;
+      if (isMobile || isZoomed) return;
       const fips = String(d.id).padStart(2, "0");
       const result = stateResults.get(fips);
       if (!result) return;
 
       const [cx, cy] = path.centroid(d);
-
       d3.select(this)
         .raise()
         .attr("stroke", "#333")
@@ -309,6 +330,7 @@ async function init() {
       tooltip.node().appendChild(makeBarChart(result, harrisPhoto, trumpPhoto));
     })
     .on("mousemove", function(event) {
+      if (isMobile) return;
       const tooltipWidth  = tooltip.node().offsetWidth;
       const tooltipHeight = tooltip.node().offsetHeight;
       const pageWidth     = document.documentElement.clientWidth;
@@ -326,12 +348,12 @@ async function init() {
           : (event.pageY - 28) + "px");
     })
     .on("mouseout", function() {
+      if (isMobile) return;
       d3.select(this)
         .transition().duration(150)
         .attr("transform", null)
         .attr("stroke", "#fff")
         .attr("stroke-width", 0.5);
-
       tooltip.style("opacity", 0);
     })
     .on("click", function(event, d) {
@@ -341,47 +363,40 @@ async function init() {
       const result = stateResults.get(fips);
       if (!result) return;
 
-      // Animate tooltip flying toward sidebar
-      const wrapperRect = wrapper.node().getBoundingClientRect();
-      const tooltipNode  = tooltip.node();
-      const tipRect      = tooltipNode.getBoundingClientRect();
+      // Desktop: animate tooltip flying to sidebar
+      if (!isMobile) {
+        const wrapperRect = wrapper.node().getBoundingClientRect();
+        const tipRect     = tooltip.node().getBoundingClientRect();
+        const targetX     = wrapperRect.right - wrapperRect.left - 30;
+        const targetY     = tipRect.top - wrapperRect.top + window.scrollY - tipRect.height / 2;
+        const deltaX      = targetX - (tipRect.left - wrapperRect.left);
+        const deltaY      = targetY - (tipRect.top + window.scrollY - wrapperRect.top);
 
-      const targetX = wrapperRect.right - wrapperRect.left - 30;
-      const targetY = tipRect.top - wrapperRect.top + window.scrollY - tipRect.height / 2;
-      const deltaX  = targetX - (tipRect.left - wrapperRect.left);
-      const deltaY  = targetY - (tipRect.top + window.scrollY - wrapperRect.top);
+        tooltip
+          .style("transition", "transform 0.35s ease, opacity 0.35s ease")
+          .style("transform", `translate(${deltaX}px, ${deltaY}px) scale(0.4)`)
+          .style("opacity", "0");
 
-      tooltip
-        .style("transition", "transform 0.35s ease, opacity 0.35s ease")
-        .style("transform", `translate(${deltaX}px, ${deltaY}px) scale(0.4)`)
-        .style("opacity", "0");
+        sidebar
+          .style("display", "block")
+          .style("transform", "translateX(220px)")
+          .style("opacity", "0")
+          .style("transition", "transform 0.4s ease, opacity 0.4s ease");
 
-      // Sidebar slides in from right
-      sidebar
-        .style("display", "block")
-        .style("transform", "translateX(220px)")
-        .style("opacity", "0")
-        .style("transition", "transform 0.4s ease, opacity 0.4s ease");
+        setTimeout(() => sidebar.style("transform", "translateX(0)").style("opacity", "1"), 200);
+        setTimeout(() => tooltip.style("transition", "").style("transform", "").style("opacity", "0"), 400);
+      }
 
-      setTimeout(() => {
-        sidebar.style("transform", "translateX(0)").style("opacity", "1");
-      }, 200);
-
-      setTimeout(() => {
-        tooltip.style("transition", "").style("transform", "").style("opacity", "0");
-      }, 400);
-
-      // Zoom into state
+      // Zoom — centered on mobile, shifted left on desktop
       const [[x0, y0], [x1, y1]] = path.bounds(d);
       const stateW = x1 - x0;
       const stateH = y1 - y0;
 
-      const scale = Math.min(
-        Math.min(width / stateW, height / stateH) * 0.75,
-        4
-      );
-      const tx = width * 0.4 - scale * (x0 + stateW / 2);
-      const ty = height / 2  - scale * (y0 + stateH / 2);
+      const scale = Math.min(Math.min(width / stateW, height / stateH) * 0.75, 4);
+      const tx = isMobile
+        ? width / 2 - scale * (x0 + stateW / 2)
+        : width * 0.4 - scale * (x0 + stateW / 2);
+      const ty = height / 2 - scale * (y0 + stateH / 2);
 
       svg.transition().duration(600).call(
         zoom.transform,
@@ -412,7 +427,23 @@ async function init() {
       svg.select(".county-layer").remove();
       const countyLayer = svg.append("g").attr("class", "county-layer");
 
-      // County fills — color = winner/margin, opacity = turnout
+      // County name tooltip (desktop only)
+      const countyTooltip = d3.select("body").append("div")
+        .style("position", "absolute")
+        .style("background", "white")
+        .style("border", "1px solid #ddd")
+        .style("border-radius", "4px")
+        .style("padding", "4px 10px")
+        .style("pointer-events", "none")
+        .style("font-size", "12px")
+        .style("font-family", "sans-serif")
+        .style("box-shadow", "0 2px 6px rgba(0,0,0,0.12)")
+        .style("opacity", 0)
+        .style("z-index", "100");
+
+      let selectedCounty = null;
+
+      // County fills
       countyLayer.selectAll(".county-fill")
         .data(countyFeatures)
         .join("path")
@@ -427,20 +458,67 @@ async function init() {
         .attr("stroke", "#fff")
         .attr("stroke-width", 0.3)
         .style("cursor", "pointer")
-        .transition().delay(300).duration(400)
-        .attr("opacity", d => {
-          const r = countyDataMap.get(String(d.id).padStart(5, "0"));
-          return r ? opacityScale(r.total_votes) : 0.25;
-        });
+        .on("mouseover", function(event, d) {
+          if (isMobile || selectedCounty === d) return;
+          const fipsC = String(d.id).padStart(5, "0");
+          const r = countyDataMap.get(fipsC);
+          const [cx, cy] = path.centroid(d);
 
-      // County fill click → highlight fill + scroll to row
-      countyLayer.selectAll(".county-fill")
+          d3.select(this)
+            .raise()
+            .attr("stroke", "#333")
+            .attr("stroke-width", 1)
+            .transition().duration(150)
+            .attr("transform", `translate(${cx},${cy}) scale(1.06) translate(${-cx},${-cy})`);
+
+          const name = r
+            ? r.county_name.charAt(0) + r.county_name.slice(1).toLowerCase()
+            : "Unknown";
+          countyTooltip.style("opacity", 1).text(name);
+        })
+        .on("mousemove", function(event) {
+          if (isMobile) return;
+          countyTooltip
+            .style("left", (event.pageX + 10) + "px")
+            .style("top",  (event.pageY - 28) + "px");
+        })
+        .on("mouseout", function(event, d) {
+          if (isMobile || selectedCounty === d) return;
+          d3.select(this)
+            .transition().duration(150)
+            .attr("transform", null)
+            .attr("stroke", "#fff")
+            .attr("stroke-width", 0.3);
+          countyTooltip.style("opacity", 0);
+        })
         .on("click", function(event, d) {
           event.stopPropagation();
+          countyTooltip.style("opacity", 0);
 
           const fipsC = String(d.id).padStart(5, "0");
           const r     = countyDataMap.get(fipsC);
           if (!r) return;
+
+          // Second click = deselect
+          if (selectedCounty === d) {
+            selectedCounty = null;
+
+            countyLayer.selectAll(".county-fill")
+              .transition().duration(200)
+              .attr("transform", null)
+              .attr("opacity", dd => {
+                const rr = countyDataMap.get(String(dd.id).padStart(5, "0"));
+                return rr ? opacityScale(rr.total_votes) : 0.25;
+              })
+              .attr("stroke", "#fff")
+              .attr("stroke-width", 0.3);
+
+            list.selectAll("div[id^='county-row-']")
+              .style("background", "transparent");
+            return;
+          }
+
+          selectedCounty = d;
 
           const idx = sorted.findIndex(s =>
             String(s.county_fips).padStart(5, "0") === fipsC
@@ -457,6 +535,7 @@ async function init() {
 
           countyLayer.selectAll(".county-fill")
             .transition().duration(200)
+            .attr("transform", null)
             .attr("opacity", dd => {
               const f  = String(dd.id).padStart(5, "0");
               const rr = countyDataMap.get(f);
@@ -464,9 +543,14 @@ async function init() {
             })
             .attr("stroke",       dd => dd === d ? "#333" : "#fff")
             .attr("stroke-width", dd => dd === d ? 1.5   : 0.3);
+        })
+        .transition().delay(300).duration(400)
+        .attr("opacity", d => {
+          const r = countyDataMap.get(String(d.id).padStart(5, "0"));
+          return r ? opacityScale(r.total_votes) : 0.25;
         });
 
-      // ── Sidebar content ───────────────────────────────────
+      // ── Panel content (shared for desktop sidebar + mobile panel) ─────────────
 
       const counties    = countyResultsByState.get(fips) || [];
       const sorted      = [...counties]
@@ -476,20 +560,30 @@ async function init() {
       const repCounties = counties.filter(d => d.per_gop >= d.per_dem).length;
       const totalVotes  = d3.sum(counties, d => d.total_votes);
 
-      sidebar.html("");
-      sidebar.node().scrollTop = 0;
+      const panel = isMobile ? mobilePanel : sidebar;
+
+      if (isMobile) {
+        mobilePanel
+          .style("display", "block")
+          .style("opacity", "0")
+          .style("transition", "opacity 0.4s ease");
+        setTimeout(() => mobilePanel.style("opacity", "1"), 50);
+      }
+
+      panel.html("");
+      panel.node().scrollTop = 0;
 
       // Header
-      sidebar.append("div")
+      panel.append("div")
         .style("padding", "10px 12px")
         .style("border-bottom", "0.5px solid #eee")
         .html(`
-          <div style="font-weight:500;font-size:13px">${result.state_name}</div>
-          <div style="font-size:11px;color:#999;margin-top:2px">${counties.length} counties</div>
+          <div style="font-weight:500;font-size:${isMobile ? "15px" : "13px"}">${result.state_name}</div>
+          <div style="font-size:${isMobile ? "12px" : "11px"};color:#999;margin-top:2px">${counties.length} counties</div>
         `);
 
       // Candidate photos + stats
-      const photoRow = sidebar.append("div")
+      const photoRow = panel.append("div")
         .style("display", "flex")
         .style("gap", "6px")
         .style("padding", "12px 12px 10px")
@@ -497,83 +591,80 @@ async function init() {
         .style("align-items", "flex-start")
         .style("justify-content", "center");
 
+      const photoSize = isMobile ? "72px" : "56px";
+
       const harrisDiv = photoRow.append("div")
-        .style("flex", "1")
-        .style("display", "flex")
-        .style("flex-direction", "column")
-        .style("align-items", "center")
-        .style("gap", "4px");
+        .style("flex", "1").style("display", "flex")
+        .style("flex-direction", "column").style("align-items", "center").style("gap", "4px");
 
       harrisDiv.append("img")
         .attr("src", harrisPhoto)
-        .style("width", "56px").style("height", "56px")
+        .style("width", photoSize).style("height", photoSize)
         .style("border-radius", "50%").style("object-fit", "cover")
         .style("border", "2px solid #2980b9");
 
       harrisDiv.append("div")
-        .style("font-size", "11px").style("color", "#2980b9").style("font-weight", "500")
-        .text("Harris");
+        .style("font-size", isMobile ? "13px" : "11px")
+        .style("color", "#2980b9").style("font-weight", "500").text("Harris");
 
       harrisDiv.append("div")
-        .style("font-size", "15px").style("font-weight", "600").style("color", "#2980b9")
+        .style("font-size", isMobile ? "18px" : "15px")
+        .style("font-weight", "600").style("color", "#2980b9")
         .text(`${result.dem_pct.toFixed(1)}%`);
 
       harrisDiv.append("div")
-        .style("font-size", "9px").style("color", "#888")
+        .style("font-size", isMobile ? "11px" : "9px").style("color", "#888")
         .text(`${demCounties} counties`);
 
       photoRow.append("div")
         .style("font-size", "11px").style("color", "#aaa")
-        .style("font-weight", "500").style("margin-top", "22px")
-        .text("vs");
+        .style("font-weight", "500").style("margin-top", "22px").text("vs");
 
       const trumpDiv = photoRow.append("div")
-        .style("flex", "1")
-        .style("display", "flex")
-        .style("flex-direction", "column")
-        .style("align-items", "center")
-        .style("gap", "4px");
+        .style("flex", "1").style("display", "flex")
+        .style("flex-direction", "column").style("align-items", "center").style("gap", "4px");
 
       trumpDiv.append("img")
         .attr("src", trumpPhoto)
-        .style("width", "56px").style("height", "56px")
+        .style("width", photoSize).style("height", photoSize)
         .style("border-radius", "50%").style("object-fit", "cover")
         .style("border", "2px solid #c0392b");
 
       trumpDiv.append("div")
-        .style("font-size", "11px").style("color", "#c0392b").style("font-weight", "500")
-        .text("Trump");
+        .style("font-size", isMobile ? "13px" : "11px")
+        .style("color", "#c0392b").style("font-weight", "500").text("Trump");
 
       trumpDiv.append("div")
-        .style("font-size", "15px").style("font-weight", "600").style("color", "#c0392b")
+        .style("font-size", isMobile ? "18px" : "15px")
+        .style("font-weight", "600").style("color", "#c0392b")
         .text(`${result.rep_pct.toFixed(1)}%`);
 
       trumpDiv.append("div")
-        .style("font-size", "9px").style("color", "#888")
+        .style("font-size", isMobile ? "11px" : "9px").style("color", "#888")
         .text(`${repCounties} counties`);
 
       // Total votes
-      sidebar.append("div")
+      panel.append("div")
         .style("padding", "8px 12px")
         .style("border-bottom", "0.5px solid #eee")
         .style("display", "flex")
         .style("justify-content", "space-between")
-        .style("font-size", "11px")
+        .style("font-size", isMobile ? "13px" : "11px")
         .html(`
           <span style="color:#999">Total votes</span>
           <span style="font-weight:500">${(totalVotes / 1e6).toFixed(1)}M</span>
         `);
 
       // County list label
-      sidebar.append("div")
+      panel.append("div")
         .style("padding", "6px 12px 2px")
-        .style("font-size", "9px")
+        .style("font-size", isMobile ? "11px" : "9px")
         .style("color", "#aaa")
         .style("letter-spacing", "0.04em")
         .text("COUNTIES BY VOTES");
 
       // County rows
-      const list = sidebar.append("div").style("padding", "4px 12px 12px");
+      const list = panel.append("div").style("padding", "4px 12px 12px");
 
       sorted.forEach(county => {
         const demPct = county.per_dem * 100;
@@ -581,7 +672,7 @@ async function init() {
 
         const row = list.append("div")
           .attr("id", `county-row-${county.listIndex}`)
-          .style("margin-bottom", "8px")
+          .style("margin-bottom", isMobile ? "12px" : "8px")
           .style("border-radius", "4px")
           .style("padding", "3px 4px")
           .style("transition", "background 0.2s")
@@ -592,15 +683,16 @@ async function init() {
           .style("justify-content", "space-between")
           .style("margin-bottom", "3px")
           .html(`
-            <span style="font-size:11px;color:#333">${county.county_name.charAt(0) + county.county_name.slice(1).toLowerCase()}</span>
-            <span style="font-size:9px;color:#aaa">${county.total_votes > 1e6
+            <span style="font-size:${isMobile ? "13px" : "11px"};color:#333">${county.county_name.charAt(0) + county.county_name.slice(1).toLowerCase()}</span>
+            <span style="font-size:${isMobile ? "11px" : "9px"};color:#aaa">${county.total_votes > 1e6
               ? `${(county.total_votes / 1e6).toFixed(1)}M`
               : `${Math.round(county.total_votes / 1000)}k`} votes</span>
           `);
 
         const bar = row.append("div")
           .style("display", "flex").style("width", "100%")
-          .style("height", "8px").style("border-radius", "3px")
+          .style("height", isMobile ? "12px" : "8px")
+          .style("border-radius", "3px")
           .style("overflow", "hidden").style("margin-bottom", "2px");
 
         bar.append("div")
@@ -614,11 +706,10 @@ async function init() {
           .style("justify-content", "space-between")
           .style("margin-bottom", "6px")
           .html(`
-            <span style="font-size:9px;color:#2980b9">${demPct.toFixed(1)}%</span>
-            <span style="font-size:9px;color:#c0392b">${repPct.toFixed(1)}%</span>
+            <span style="font-size:${isMobile ? "11px" : "9px"};color:#2980b9">${demPct.toFixed(1)}%</span>
+            <span style="font-size:${isMobile ? "11px" : "9px"};color:#c0392b">${repPct.toFixed(1)}%</span>
           `);
 
-        // Row click → highlight county fill on map
         row.on("click", function() {
           list.selectAll("div[id^='county-row-']").style("background", "transparent");
 
