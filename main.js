@@ -72,7 +72,7 @@ async function init() {
 
   function makeBarChart(result, harrisPhoto, trumpPhoto) {
     const w = 160, h = 260;
-    const margin = { top: 10, right: 24, bottom: 80, left: 28 };
+    const margin = { top: 15, right: 10, bottom: 80, left: 28 };
     const innerW = w - margin.left - margin.right;
     const innerH = h - margin.top - margin.bottom;
 
@@ -109,7 +109,7 @@ async function init() {
         .attr("stroke-dasharray", "3,3");
 
       g.append("text")
-        .attr("x", innerW - 4)
+        .attr("x", innerW + 6)
         .attr("y", fiftyY)
         .attr("text-anchor", "end")
         .attr("dominant-baseline", "central")
