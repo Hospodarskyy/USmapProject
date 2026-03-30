@@ -3,7 +3,6 @@
 
 async function init() {
 
-  // load all 3 data sources at once
   const [us, usCounties, electionRaw] = await Promise.all([
     fetch("https://cdn.jsdelivr.net/npm/us-atlas@3/states-albers-10m.json").then(r => r.json()),
     fetch("https://cdn.jsdelivr.net/npm/us-atlas@3/counties-albers-10m.json").then(r => r.json()),
