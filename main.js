@@ -1,6 +1,3 @@
-// main.js - US Election Map 2024
-// data source: MIT Election Lab county results
-
 async function init() {
 
   const [us, usCounties, electionRaw] = await Promise.all([
@@ -911,6 +908,17 @@ async function init() {
   }
 
   document.getElementById("map").appendChild(wrapper.node());
+
+  wrapper.append("div")
+    .style("font-size", "11px")
+    .style("color", "#aaa")
+    .style("padding", "6px 0")
+    .style("text-align", "center")
+    .html(`Data: <a href="https://electionlab.mit.edu" target="_blank">MIT Election Lab</a> · Geography: <a href="https://github.com/topojson/us-atlas" target="_blank">US Atlas TopoJSON</a>`);
+
+  document.getElementById("map").appendChild(wrapper.node());
+
+  if (isMobile) buildDefaultMobilePanel();
 
   if (isMobile) buildDefaultMobilePanel();
 }
